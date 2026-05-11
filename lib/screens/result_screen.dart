@@ -1,37 +1,30 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
-import '../data/mock_data.dart';
+
+import '../models/pronunciation_models.dart';
 import '../widgets/common_widgets.dart';
 import 'learn_screen.dart';
 
-class ResultScreen extends StatefulWidget {
-  final String lessonId;
-  final String sceneId;
-  final String sentenceId;
+class ResultScreen extends StatelessWidget {
+  final Lesson lesson;
+  final List<Utterance> utterances;
+  final int currentIndex;
+  final AttemptResult result;
+  final List<PhonemeDetail> phonemes;
+  final PitchDetail pitch;
+  final AttemptFeedback feedback;
 
   const ResultScreen({
     super.key,
-    required this.lessonId,
-    required this.sceneId,
-    required this.sentenceId,
+    required this.lesson,
+    required this.utterances,
+    required this.currentIndex,
+    required this.result,
+    required this.phonemes,
+    required this.pitch,
+    required this.feedback,
   });
 
-  @override
-  State<ResultScreen> createState() => _ResultScreenState();
-}
-
-class _ResultScreenState extends State<ResultScreen> {
-  bool showHint = false;
-  late final int overall = Random().nextInt(30) + 70;
-  late final int consonant = Random().nextInt(30) + 70;
-  late final int vowel = Random().nextInt(30) + 70;
-  late final int intonation = Random().nextInt(30) + 70;
-
-  PracticeSentence get sentence =>
-      sentences.firstWhere((s) => s.id == widget.sentenceId);
-
-  List<PracticeSentence> get sceneSentences =>
-      sentences.where((s) => s.sceneId == widget.sceneId).toList();
+  Utterance get utterance => utterances[currentIndex];
 
   Color scoreColor(int s) {
     if (s >= 90) return Colors.green;
@@ -41,24 +34,21 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   String headerText() {
-    if (overall >= 90) return '완벽해요!';
-    if (overall >= 80) return '잘했어요!';
-    if (overall >= 70) return '좋아요!';
-    return '한 번 더 해보자!';
+    if (result.overallScore >= 90) return '완료';
+    if (result.overallScore >= 80) return '좋아요';
+    if (result.overallScore >= 70) return '다듬어볼까요';
+    return '다시 연습해요';
   }
 
-  void next() {
-    final current = sceneSentences.indexWhere((s) => s.id == widget.sentenceId);
-
-    if (current + 1 < sceneSentences.length) {
-      final n = sceneSentences[current + 1];
+  void next(BuildContext context) {
+    if (currentIndex + 1 < utterances.length) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => LearnScreen(
-            lessonId: widget.lessonId,
-            sceneId: widget.sceneId,
-            sentenceId: n.id,
+            lesson: lesson,
+            utterances: utterances,
+            initialIndex: currentIndex + 1,
           ),
         ),
       );
@@ -69,10 +59,6 @@ class _ResultScreenState extends State<ResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final incorrect = sentence.targetWord.length >= 2
-        ? sentence.targetWord.substring(0, 2)
-        : sentence.targetWord;
-
     return Scaffold(
       backgroundColor: bgColor,
       body: Stack(
@@ -87,24 +73,16 @@ class _ResultScreenState extends State<ResultScreen> {
             children: [
               const AppHeader(
                 label: '학습 결과',
-                title: '발음 분석 결과',
+                title: '백엔드 분석 결과',
               ),
               const SizedBox(height: 18),
               Center(
                 child: Column(
                   children: [
-                    Container(
-                      width: 82,
-                      height: 82,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
-                        ),
-                      ),
-                      child: const Center(
-                        child: Text('🎉', style: TextStyle(fontSize: 38)),
-                      ),
+                    Icon(
+                      Icons.check_circle,
+                      color: scoreColor(result.overallScore),
+                      size: 74,
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -121,28 +99,34 @@ class _ResultScreenState extends State<ResultScreen> {
               AppCard(
                 child: Column(
                   children: [
-                    const Text('종합 점수', style: TextStyle(color: Color(0xFF64748B))),
+                    const Text(
+                      '종합 점수',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
                     const SizedBox(height: 8),
                     Text(
-                      '$overall',
+                      '${result.overallScore}',
                       style: TextStyle(
                         fontSize: 72,
                         fontWeight: FontWeight.w900,
-                        color: scoreColor(overall),
+                        color: scoreColor(result.overallScore),
                       ),
                     ),
-                    const Text('100점 만점', style: TextStyle(color: Color(0xFF64748B))),
+                    const Text(
+                      '100점 만점',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _scoreCard('자음', consonant)),
+                  Expanded(child: _scoreCard('발음', result.pronunciationScore)),
                   const SizedBox(width: 10),
-                  Expanded(child: _scoreCard('모음', vowel)),
+                  Expanded(child: _scoreCard('피치', result.pitchScore)),
                   const SizedBox(width: 10),
-                  Expanded(child: _scoreCard('억양', intonation)),
+                  Expanded(child: _scoreCard('억양', pitch.score)),
                 ],
               ),
               const SizedBox(height: 12),
@@ -155,56 +139,105 @@ class _ResultScreenState extends State<ResultScreen> {
                         Icon(Icons.volume_up, color: appBlue),
                         SizedBox(width: 8),
                         Text(
-                          '연습한 문장',
+                          '연습 문장',
                           style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          color: Color(0xFF0F172A),
-                          fontSize: 20,
-                          height: 1.45,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        children: _highlight(sentence.text, incorrect),
+                    Text(
+                      utterance.practiceText,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontSize: 20,
+                        height: 1.45,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
+                    if (result.transcript.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        result.transcript,
+                        style: const TextStyle(color: Color(0xFF64748B)),
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 12),
               AppCard(
-                onTap: () => setState(() => showHint = true),
-                child: const Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      backgroundColor: Color(0xFFF1F5F9),
-                      child: Icon(Icons.trending_up, color: Color(0xFF475569)),
+                    const Text(
+                      '음소 상세',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
                     ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '억양 힌트 보기',
-                            style: TextStyle(fontWeight: FontWeight.w900),
+                    const SizedBox(height: 12),
+                    if (phonemes.isEmpty)
+                      const Text(
+                        '음소 상세가 없습니다.',
+                        style: TextStyle(color: Color(0xFF64748B)),
+                      )
+                    else
+                      for (final detail in phonemes.take(5))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            children: [
+                              Pill(
+                                text: detail.symbol,
+                                background: const Color(0xFFF1F5F9),
+                                foreground: const Color(0xFF475569),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  detail.note.isEmpty
+                                      ? '${detail.expected} → ${detail.actual}'
+                                      : detail.note,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${detail.score}',
+                                style: TextStyle(
+                                  color: scoreColor(detail.score),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: 3),
-                          Text(
-                            '원어민 억양과 비교해봐요',
-                            style: TextStyle(
-                              color: Color(0xFF64748B),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                        ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '피치 상세',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      pitch.summary.isEmpty ? '피치 요약이 없습니다.' : pitch.summary,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        height: 1.45,
                       ),
                     ),
-                    Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: (pitch.score / 100).clamp(0, 1).toDouble(),
+                      color: scoreColor(pitch.score),
+                      backgroundColor: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                   ],
                 ),
               ),
@@ -220,11 +253,15 @@ class _ResultScreenState extends State<ResultScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _feedback('칭찬', '"${sentence.targetWord}" 발음이 정확해요!', Icons.auto_awesome),
+                    _feedback('칭찬', feedback.praise, Icons.auto_awesome),
                     const Divider(color: Colors.white24, height: 26),
-                    _feedback('개선 포인트', '"$incorrect" 부분의 억양을 더 자연스럽게 해보세요', Icons.trending_up),
+                    _feedback(
+                      '개선 포인트',
+                      feedback.improvement,
+                      Icons.trending_up,
+                    ),
                     const Divider(color: Colors.white24, height: 26),
-                    _feedback('실천 팁', '천천히 말하기로 억양 패턴을 따라해보세요', Icons.lightbulb_outline),
+                    _feedback('실천 팁', feedback.tip, Icons.lightbulb_outline),
                   ],
                 ),
               ),
@@ -256,9 +293,9 @@ class _ResultScreenState extends State<ResultScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (_) => LearnScreen(
-                              lessonId: widget.lessonId,
-                              sceneId: widget.sceneId,
-                              sentenceId: widget.sentenceId,
+                              lesson: lesson,
+                              utterances: utterances,
+                              initialIndex: currentIndex,
                             ),
                           ),
                         ),
@@ -269,9 +306,11 @@ class _ResultScreenState extends State<ResultScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: next,
+                        onPressed: () => next(context),
                         icon: const Icon(Icons.arrow_forward),
-                        label: const Text('다음 문장'),
+                        label: Text(
+                          currentIndex + 1 < utterances.length ? '다음 문장' : '완료',
+                        ),
                       ),
                     ),
                   ],
@@ -279,34 +318,9 @@ class _ResultScreenState extends State<ResultScreen> {
               ),
             ),
           ),
-          if (showHint) _hintSheet(),
         ],
       ),
     );
-  }
-
-  List<TextSpan> _highlight(String text, String word) {
-    final parts = text.split(word);
-    final spans = <TextSpan>[];
-
-    for (var i = 0; i < parts.length; i++) {
-      spans.add(TextSpan(text: parts[i]));
-      if (i < parts.length - 1) {
-        spans.add(
-          TextSpan(
-            text: word,
-            style: const TextStyle(
-              backgroundColor: Color(0xFFFEE2E2),
-              color: Color(0xFF991B1B),
-              decoration: TextDecoration.underline,
-              decorationThickness: 2,
-            ),
-          ),
-        );
-      }
-    }
-
-    return spans;
   }
 
   Widget _scoreCard(String label, int score) {
@@ -314,7 +328,13 @@ class _ResultScreenState extends State<ResultScreen> {
       padding: const EdgeInsets.all(14),
       child: Column(
         children: [
-          Text(label, style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+            ),
+          ),
           const SizedBox(height: 7),
           Text(
             '$score',
@@ -326,7 +346,7 @@ class _ResultScreenState extends State<ResultScreen> {
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            value: score / 100,
+            value: (score / 100).clamp(0, 1).toDouble(),
             color: scoreColor(score),
             backgroundColor: const Color(0xFFE2E8F0),
             borderRadius: BorderRadius.circular(99),
@@ -349,11 +369,20 @@ class _ResultScreenState extends State<ResultScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(color: Color(0xFFDBEAFE), fontSize: 12)),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFFDBEAFE),
+                  fontSize: 12,
+                ),
+              ),
               const SizedBox(height: 4),
               Text(
-                body,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                body.isEmpty ? '-' : body,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -361,172 +390,4 @@ class _ResultScreenState extends State<ResultScreen> {
       ],
     );
   }
-
-  Widget _hintSheet() {
-    return GestureDetector(
-      onTap: () => setState(() => showHint = false),
-      child: Container(
-        color: Colors.black54,
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: GestureDetector(
-            onTap: () {},
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(22),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFCBD5E1),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        const Text(
-                          '억양 힌트',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () => setState(() => showHint = false),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _intonationBox('원어민 억양', '끝을 내려요 ↓', Colors.green, false),
-                    const SizedBox(height: 10),
-                    _intonationBox('내 억양', '끝이 올라갔어요 ↑', Colors.orange, true),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Text('마지막 부분을 조금 더 내려서 말하면 더 자연스러워.'),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => setState(() => showHint = false),
-                            child: const Text('닫기'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('원어민 듣기'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _intonationBox(String title, String desc, Color color, bool rising) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(radius: 5, backgroundColor: color),
-              const SizedBox(width: 8),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              const Spacer(),
-              Text(
-                desc,
-                style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 56,
-            width: double.infinity,
-            child: CustomPaint(
-              painter: _IntonationPainter(color: color, rising: rising),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _IntonationPainter extends CustomPainter {
-  final Color color;
-  final bool rising;
-
-  _IntonationPainter({required this.color, required this.rising});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final muted = Paint()
-      ..color = const Color(0xFFCBD5E1)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final active = Paint()
-      ..color = color
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final p1 = Path()
-      ..moveTo(8, size.height * .5)
-      ..quadraticBezierTo(size.width * .25, size.height * .45, size.width * .58, size.height * .5);
-
-    canvas.drawPath(p1, muted);
-
-    final p2 = Path()
-      ..moveTo(size.width * .58, size.height * .5)
-      ..quadraticBezierTo(
-        size.width * .75,
-        rising ? size.height * .25 : size.height * .65,
-        size.width - 8,
-        rising ? size.height * .18 : size.height * .82,
-      );
-
-    canvas.drawPath(p2, active);
-    canvas.drawCircle(
-      Offset(size.width - 8, rising ? size.height * .18 : size.height * .82),
-      4,
-      Paint()..color = color,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

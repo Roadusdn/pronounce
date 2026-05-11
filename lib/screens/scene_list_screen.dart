@@ -1,19 +1,43 @@
 import 'package:flutter/material.dart';
-import '../data/mock_data.dart';
+
+import '../api/pronunciation_api_client.dart';
+import '../models/pronunciation_models.dart';
 import '../widgets/common_widgets.dart';
 import 'learn_screen.dart';
 
-class SceneListScreen extends StatelessWidget {
-  final String lessonId;
+class SceneListScreen extends StatefulWidget {
+  final Lesson lesson;
 
-  const SceneListScreen({super.key, required this.lessonId});
+  const SceneListScreen({super.key, required this.lesson});
+
+  @override
+  State<SceneListScreen> createState() => _SceneListScreenState();
+}
+
+class _SceneListScreenState extends State<SceneListScreen> {
+  final api = PronunciationApiClient();
+  late Future<List<Utterance>> utterancesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    utterancesFuture = api.getSceneUtterances(widget.lesson.sceneId);
+  }
+
+  @override
+  void dispose() {
+    api.close();
+    super.dispose();
+  }
+
+  void _reload() {
+    setState(() {
+      utterancesFuture = api.getSceneUtterances(widget.lesson.sceneId);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final lesson = lessons.firstWhere((l) => l.id == lessonId);
-    final lessonScenes = scenes.where((s) => s.lessonId == lessonId).toList();
-    final completedCount = lessonScenes.where((s) => s.completed).length;
-
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
@@ -36,7 +60,7 @@ class SceneListScreen extends StatelessWidget {
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.chevron_left),
                         style: IconButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(.18),
+                          backgroundColor: Colors.white24,
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -52,7 +76,7 @@ class SceneListScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    '씬 선택',
+                    '문장 선택',
                     style: TextStyle(
                       color: Color(0xFFDBEAFE),
                       fontSize: 14,
@@ -61,7 +85,7 @@ class SceneListScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    lesson.title,
+                    widget.lesson.title,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 28,
@@ -71,139 +95,176 @@ class SceneListScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    lesson.description,
+                    widget.lesson.description,
                     style: const TextStyle(color: Color(0xFFDBEAFE)),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.18),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const Text(
-                              '학습 진행률',
-                              style: TextStyle(color: Color(0xFFDBEAFE)),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '$completedCount / ${lessonScenes.length}',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: completedCount / lessonScenes.length,
-                          backgroundColor: Colors.white24,
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: lessonScenes.length,
-                itemBuilder: (_, i) {
-                  final scene = lessonScenes[i];
-                  final first = sentences.firstWhere((s) => s.sceneId == scene.id);
+              child: FutureBuilder<List<Utterance>>(
+                future: utterancesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const _UtteranceState(
+                      icon: Icons.cloud_sync_outlined,
+                      title: '문장을 불러오는 중',
+                    );
+                  }
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                  if (snapshot.hasError) {
+                    return _UtteranceState(
+                      icon: Icons.error_outline,
+                      title: '문장을 불러오지 못했어요',
+                      body: snapshot.error.toString(),
+                      actionLabel: '다시 시도',
+                      onAction: _reload,
+                    );
+                  }
+
+                  final utterances = snapshot.data ?? const [];
+                  if (utterances.isEmpty) {
+                    return const _UtteranceState(
+                      icon: Icons.inbox_outlined,
+                      title: '연습할 문장이 없어요',
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: utterances.length,
+                    itemBuilder: (_, i) {
+                      final utterance = utterances[i];
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: AppCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              CircleAvatar(
-                                backgroundColor: const Color(0xFFDBEAFE),
-                                foregroundColor: appBlue,
-                                child: Text('${i + 1}'),
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: const Color(0xFFDBEAFE),
+                                    foregroundColor: appBlue,
+                                    child: Text('${i + 1}'),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      utterance.practiceText,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  scene.title,
-                                  style: const TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w900,
+                              const SizedBox(height: 12),
+                              Text(
+                                utterance.subtitleText,
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Pill(
+                                    text: utterance.difficulty,
+                                    background: const Color(0xFFF1F5F9),
+                                    foreground: const Color(0xFF475569),
+                                  ),
+                                  Pill(
+                                    text:
+                                        '${utterance.pauseSec.toStringAsFixed(1)}초 멈춤',
+                                    background: const Color(0xFFDBEAFE),
+                                    foreground: const Color(0xFF1D4ED8),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              PrimaryButton(
+                                text: '연습 시작',
+                                icon: Icons.play_arrow,
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => LearnScreen(
+                                      lesson: widget.lesson,
+                                      utterances: utterances,
+                                      initialIndex: i,
+                                    ),
                                   ),
                                 ),
                               ),
-                              if (scene.completed)
-                                const Icon(Icons.check_circle, color: Colors.green),
                             ],
                           ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Icon(Icons.schedule, size: 17, color: Colors.grey.shade600),
-                              const SizedBox(width: 5),
-                              Text(scene.duration),
-                              const SizedBox(width: 18),
-                              Icon(Icons.chat_bubble_outline, size: 17, color: Colors.grey.shade600),
-                              const SizedBox(width: 5),
-                              Text('${scene.sentenceCount}문장'),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(13),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '발음 초점',
-                                  style: TextStyle(
-                                    color: Color(0xFF475569),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  scene.pronunciationFocus,
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          PrimaryButton(
-                            text: scene.completed ? '다시 학습하기' : '학습 시작',
-                            icon: Icons.play_arrow,
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => LearnScreen(
-                                  lessonId: lessonId,
-                                  sceneId: scene.id,
-                                  sentenceId: first.id,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UtteranceState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? body;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _UtteranceState({
+    required this.icon,
+    required this.title,
+    this.body,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: appBlue, size: 46),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            if (body != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                body!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF64748B)),
+              ),
+            ],
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: onAction,
+                child: Text(actionLabel!),
+              ),
+            ],
           ],
         ),
       ),

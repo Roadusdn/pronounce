@@ -1,0 +1,2 @@
+utterance_id,lesson_id,lesson_name,scene_id,scene_name,clip_filename,clip_start_sec,clip_end_sec,pause_sec,subtitle_text,practice_text,normalized_text,target_phoneme_group,target_prosody_type,reference_audio_path,difficulty,memo
+U001,L001,비행기안,S001,바비와대화,clip_001.mp4,0,34,5,우리 지금 라면 먹으려고,우리 지금 라면 먹으려고,우리 지금 라면 먹으려고,ㅓ-ㅗ-ㅜ,sentence_final_fall,data/audio/reference/U001_reference.wav,medium,“먹으려고”의 모음 흐름과 문장 끝 하강 억양 체크

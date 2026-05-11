@@ -1,0 +1,2 @@
+utterance_id,lesson_id,lesson_title,scene_id,scene_title,clip_filename,pause_sec,subtitle_text,practice_text,normalized_text,difficulty,target_phoneme_group,target_prosody_type,reference_audio_path
+1_0000,lesson_1,기본 발음 연습,scene_1,짧은 문장,data/reference/1_0000.wav,1.0,그는 괜찮은 척하려고 애쓰는 것 같았다,그는 괜찮은 척하려고 애쓰는 것 같았다,그는 괜찮은 척하려고 애쓰는 것 같았다,beginner,ae_e_group,statement,data/reference/1_0000.wav
