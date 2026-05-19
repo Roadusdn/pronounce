@@ -20,9 +20,8 @@ class LessonSceneBundle {
 }
 
 class PronunciationRepository {
-  PronunciationRepository({
-    PronunciationApiClient? apiClient,
-  }) : _apiClient = apiClient ?? PronunciationApiClient();
+  PronunciationRepository({PronunciationApiClient? apiClient})
+    : _apiClient = apiClient ?? PronunciationApiClient();
 
   static final PronunciationRepository instance = PronunciationRepository();
 
@@ -32,8 +31,9 @@ class PronunciationRepository {
     final lessons = await _apiClient.getLessons();
     return lessons
         .map((lesson) {
-          final sceneCount =
-              lesson.sceneCount > 0 ? lesson.sceneCount : lesson.sceneIds.length;
+          final sceneCount = lesson.sceneCount > 0
+              ? lesson.sceneCount
+              : lesson.sceneIds.length;
 
           return Lesson(
             id: lesson.id,
@@ -64,9 +64,7 @@ class PronunciationRepository {
                 ? utterance.practiceText
                 : utterance.text,
             targetWord: utterance.targetWord,
-            videoUrl: _absoluteClipUrl(
-              _clipUrlFromUtterance(utterance),
-            ),
+            videoUrl: _absoluteClipUrl(_clipUrlFromUtterance(utterance)),
             clipFilename: utterance.clipFilename,
           ),
         )
@@ -185,11 +183,7 @@ class PronunciationRepository {
     try {
       return await _apiClient.getAttemptFeedback(attemptId);
     } catch (_) {
-      return const AttemptFeedback(
-        praise: '',
-        improvement: '',
-        tip: '',
-      );
+      return const AttemptFeedback(praise: '', improvement: '', tip: '');
     }
   }
 
@@ -317,27 +311,6 @@ class PronunciationRepository {
   String _cleanPitchText(String value) {
     final text = value.trim();
     if (text.isEmpty) return '';
-    if (text.contains('uploaded audio did not contain enough voiced frames')) {
-      return '녹음 음성에서 억양을 비교할 만큼 충분한 유성 구간을 찾지 못했습니다.';
-    }
-    if (text.contains('reference audio did not contain enough voiced frames')) {
-      return '기준 음성에서 억양을 비교할 만큼 충분한 유성 구간을 찾지 못했습니다.';
-    }
-    if (text.contains('failed to decode audio')) {
-      return '오디오를 억양 분석용 형식으로 변환하지 못했습니다.';
-    }
-    if (text.contains('prosody features could not be calculated')) {
-      return '오디오에서 억양 특징을 충분히 계산하지 못했습니다.';
-    }
-    if (text.contains('reference audio is missing')) {
-      return '억양 비교에 필요한 기준 음성이 아직 준비되지 않았습니다.';
-    }
-    if (text.contains('湲') ||
-        text.contains('듭뼇') ||
-        text.contains('뚯꽦') ||
-        text.contains('ㅻ뵒')) {
-      return '기준 음성을 들은 뒤 같은 속도와 리듬으로 다시 따라 말해보세요.';
-    }
     return text;
   }
 
@@ -361,7 +334,8 @@ class PronunciationRepository {
   }
 
   String _practiceTipForResult(AttemptResult result) {
-    if (result.pitchScore > 0 && result.pitchScore < result.pronunciationScore) {
+    if (result.pitchScore > 0 &&
+        result.pitchScore < result.pronunciationScore) {
       return '예문을 들으며 문장 끝 높낮이를 먼저 따라 한 뒤 전체 문장을 다시 말해보세요.';
     }
     return '예문과 같은 속도로 한 번, 조금 느린 속도로 한 번 더 반복해보세요.';
@@ -370,8 +344,7 @@ class PronunciationRepository {
   bool _usefulFeedback(String value) {
     final normalized = value.trim().toLowerCase();
     if (normalized.isEmpty) return false;
-    return normalized != 'analysis completed.' &&
-        normalized != '분석이 완료되었습니다.';
+    return normalized != 'analysis completed.' && normalized != '분석이 완료되었습니다.';
   }
 
   SceneItem _withDerivedSceneFields(
@@ -383,8 +356,7 @@ class PronunciationRepository {
       lessonId: scene.lessonId,
       title: scene.title,
       duration: scene.duration,
-      sentenceCount:
-          sentences.isEmpty ? scene.sentenceCount : sentences.length,
+      sentenceCount: sentences.isEmpty ? scene.sentenceCount : sentences.length,
       pronunciationFocus: scene.pronunciationFocus,
       completed: scene.completed,
     );
@@ -414,9 +386,5 @@ class _SceneEntry {
   final SceneItem scene;
   final List<PracticeSentence> sentences;
 
-  const _SceneEntry({
-    required this.scene,
-    required this.sentences,
-  });
+  const _SceneEntry({required this.scene, required this.sentences});
 }
-
