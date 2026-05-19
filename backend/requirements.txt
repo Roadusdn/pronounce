@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+openai-whisper
+g2pk2
+jamo
+
+# Required system dependency for openai-whisper audio decoding:
+# - Windows: winget install --id Gyan.FFmpeg -e
+# - Debian/Ubuntu/Docker: apt-get install -y ffmpeg
+# - macOS: brew install ffmpeg

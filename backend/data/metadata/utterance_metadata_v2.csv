@@ -1,0 +1,10 @@
+utterance_id,lesson_id,lesson_name,scene_id,scene_name,clip_filename,clip_start_sec,clip_end_sec,pause_sec,subtitle_text,practice_text,normalized_text,target_phoneme_group,target_prosody_type,reference_audio_path,difficulty,memo
+U001,L001,레슨1,S001,비행기에서,clip_001.mp4,0,34,5,우리 지금 라면 먹으려고,우리 지금 라면 먹으려고,우리 지금 라면 먹으려고,ㅓ-ㅗ-ㅜ,sentence_final_fall,audio/reference/U001_reference.wav,medium,“먹으려고”의 모음 흐름과 문장 끝 하강 억양 체크
+U002,L001,레슨1,S002,리허설중에,clip_002.mp4,0,28,27,잠깐 끊죠. 5분만 쉴게요.,잠깐 끊죠. 5분만 쉴게요.,잠깐 끊죠 오분만 쉴게요,ㄱ-ㄲ-ㅋ,sentence_final_fall,audio/reference/U002_reference.wav,medium,"“잠깐”, “끊죠”에서 ㄲ/ㄱ 계열 긴장도와 짧게 끊는 발화 흐름 체크"
+U003,L001,레슨1,S003,국밥집에서,clip_003.mp4,0,53,30,"나, 그게 가능할지 잘 모르겠어.","나, 그게 가능할지 잘 모르겠어.",나 그게 가능할지 잘 모르겠어,ㅓ-ㅗ-ㅜ,sentence_final_fall,audio/reference/U003_reference.wav,medium,“모르겠어”의 ㅗ/ㅓ 모음 구분과 확신 없는 하강 억양 체크
+U004,L002,레슨2,S004,한의원에서,clip_004.mp4,0,43,36,저흰 약만 받으러 온거에요.,저흰 약만 받으러 온거에요.,저흰 약만 받으러 온거에요,ㅓ-ㅗ-ㅜ,sentence_final_fall,audio/reference/U004_reference.wav,medium,"“저흰”, “받으러”, “온거에요”의 ㅓ/ㅗ/ㅡ 모음 흐름 체크"
+U005,L002,레슨2,S005,사자보이즈등장,clip_005.mp4,0,64,10,"안돼, 사람이 많아.","안돼, 사람이 많아.",안돼 사람이 많아,ㄷ-ㄸ-ㅌ,sentence_final_fall,audio/reference/U005_reference.wav,easy,“안돼”의 ㄷ 계열 발음과 “많아”에서 자연스러운 평서문 하강 억양 체크
+U006,L002,레슨2,S006,예능촬영,clip_006.mp4,0,62,56,저희야 말로 영광이죠.,저희야 말로 영광이죠.,저희야 말로 영광이죠,ㅓ-ㅗ-ㅜ,sentence_final_fall,audio/reference/U006_reference.wav,medium,"“저희야”, “영광이죠”의 ㅓ/ㅗ 모음 흐름과 공손한 하강 억양 체크"
+U007,L003,레슨3,S007,진우와대화,clip_007.mp4,0,43,27,난 너하곤 달라.,난 너하곤 달라.,난 너하곤 달라,ㄷ-ㄸ-ㅌ,sentence_final_fall,audio/reference/U007_reference.wav,easy,“달라”의 ㄷ 계열 발음과 단호한 문장 끝 하강 억양 체크
+U008,L003,레슨3,S008,미라와대화,clip_008.mp4,0,86,78,너한테 숨기는거 없어.,너한테 숨기는거 없어.,너한테 숨기는거 없어,ㅓ-ㅗ-ㅜ,sentence_final_fall,audio/reference/U008_reference.wav,medium,“숨기는거 없어”의 ㅓ/ㅡ/ㅜ 모음 흐름과 부드러운 하강 억양 체크
+U009,L003,레슨3,S009,헌트릭스대화,clip_009.mp4,0,67,60,지금 컨디션 최고야.,지금 컨디션 최고야.,지금 컨디션 최고야,ㅓ-ㅗ-ㅜ,sentence_final_fall,audio/reference/U009_reference.wav,easy,“컨디션 최고야”의 ㅓ/ㅗ 모음 대비와 자신감 있는 하강 억양 체크

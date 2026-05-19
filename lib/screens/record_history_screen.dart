@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../models/pronunciation_models.dart';
 import '../services/local_attempt_store.dart';
 import '../widgets/common_widgets.dart';
 
@@ -13,9 +13,96 @@ class RecordHistoryScreen extends StatelessWidget {
     return (sum / attempts.length).round();
   }
 
-  String _mostPracticedSound(List<Attempt> attempts) {
-    if (attempts.isEmpty) return "'ㅅ' 발음";
-    return "'ㅅ' 발음";
+  int _weeklyLearningDayCount(List<Attempt> attempts) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final learnedDates = <String>{};
+
+    for (final attempt in attempts) {
+      final date = DateTime.tryParse(attempt.date);
+      if (date == null) continue;
+
+      final day = DateTime(date.year, date.month, date.day);
+      if (day.isBefore(weekStart) || day.isAfter(today)) continue;
+
+      learnedDates.add(
+        '${day.year.toString().padLeft(4, '0')}-'
+        '${day.month.toString().padLeft(2, '0')}-'
+        '${day.day.toString().padLeft(2, '0')}',
+      );
+    }
+
+    return learnedDates.length;
+  }
+
+  String _mostPracticedSoundInRecentWindow(List<Attempt> attempts) {
+    final recentAttempts = _attemptsInRecentWindow(attempts);
+    if (recentAttempts.length < 2) {
+      return '기록 부족';
+    }
+
+    final counts = <String, int>{};
+    for (final attempt in recentAttempts) {
+      final label = _focusLabel(attempt.pronunciationFocus);
+      if (label.isEmpty) continue;
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+
+    if (counts.isEmpty) {
+      return '기록 부족';
+    }
+
+    final sorted = counts.entries.toList()
+      ..sort((a, b) {
+        final countCompare = b.value.compareTo(a.value);
+        if (countCompare != 0) return countCompare;
+        return a.key.compareTo(b.key);
+      });
+
+    return sorted.first.key;
+  }
+
+  List<Attempt> _attemptsInRecentWindow(List<Attempt> attempts) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final windowStart = today.subtract(const Duration(days: 6));
+
+    return attempts.where((attempt) {
+      final date = DateTime.tryParse(attempt.date);
+      if (date == null) return false;
+      final day = DateTime(date.year, date.month, date.day);
+      return !day.isBefore(windowStart) && !day.isAfter(today);
+    }).toList();
+  }
+
+  String _focusLabel(String value) {
+    switch (value.trim()) {
+      case 'vowel_group':
+      case '모음':
+        return '모음 발음';
+      case 'ae_e_group':
+      case '애/에':
+        return '애/에 발음';
+      case 'siot_group':
+      case 'ㅅ':
+      case '시옷':
+        return 'ㅅ 발음';
+      case 'giyeok_group':
+      case 'ㄱ':
+      case '기역':
+        return 'ㄱ 발음';
+      case 'digeut_group':
+      case 'ㄷ':
+      case '디귿':
+        return 'ㄷ 발음';
+      case 'bieup_group':
+      case 'ㅂ':
+      case '비읍':
+        return 'ㅂ 발음';
+      default:
+        return value.trim();
+    }
   }
 
   String _evaluationFor(Attempt attempt) {
@@ -206,6 +293,8 @@ class RecordHistoryScreen extends StatelessWidget {
       valueListenable: LocalAttemptStore.attempts,
       builder: (context, attempts, _) {
         final avg = _averageScore(attempts);
+        final weeklyLearningDays = _weeklyLearningDayCount(attempts);
+        final recentAttempts = LocalAttemptStore.latestAttemptsByScene();
 
         return SafeArea(
           child: ListView(
@@ -238,7 +327,7 @@ class RecordHistoryScreen extends StatelessWidget {
                       iconBg: const Color(0xFFFFEDD5),
                       iconColor: appCoral,
                       label: '이번 주 학습',
-                      value: '${attempts.length}일',
+                      value: '$weeklyLearningDays일',
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -274,7 +363,7 @@ class RecordHistoryScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            _mostPracticedSound(attempts),
+                            _mostPracticedSoundInRecentWindow(attempts),
                             style: const TextStyle(
                               color: appCoral,
                               fontSize: 25,
@@ -311,7 +400,7 @@ class RecordHistoryScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              if (attempts.isEmpty)
+              if (recentAttempts.isEmpty)
                 AppCard(
                   child: const Text(
                     '아직 연습 기록이 없습니다.',
@@ -322,7 +411,7 @@ class RecordHistoryScreen extends StatelessWidget {
                   ),
                 )
               else
-                for (final attempt in attempts)
+                for (final attempt in recentAttempts)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: AppCard(

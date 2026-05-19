@@ -43,3 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+
+# Backend local artifacts
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
+backend/data/audio/attempts/*
+!backend/data/audio/attempts/.gitkeep
+backend/data/temp/
+backend/data/audio/reference_mp3/*
+!backend/data/audio/reference_mp3/.gitkeep
+backend/data/clips/*
+!backend/data/clips/.gitkeep
+
+# Backend local artifacts created when FastAPI is launched from repo root
+data/audio/attempts/
+data/temp/

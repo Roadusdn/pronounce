@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../models/pronunciation_models.dart';
 import '../screens/profile_edit_screen.dart';
 import '../services/local_attempt_store.dart';
 import '../services/local_user_store.dart';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../models/pronunciation_models.dart';
+import '../repositories/pronunciation_repository.dart';
 import '../widgets/common_widgets.dart';
 import 'scene_list_screen.dart';
 
@@ -12,16 +13,26 @@ class LessonListScreen extends StatefulWidget {
 }
 
 class _LessonListScreenState extends State<LessonListScreen> {
+  late Future<List<Lesson>> _lessonsFuture;
   String selectedDifficulty = 'all';
 
-  List<Lesson> get filteredLessons {
-    if (selectedDifficulty == 'all') {
-      return lessons;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _lessonsFuture = PronunciationRepository.instance.getLessons();
+  }
 
-    return lessons.where((lesson) {
-      return lesson.difficulty == selectedDifficulty;
-    }).toList();
+  void _reload() {
+    setState(() {
+      _lessonsFuture = PronunciationRepository.instance.getLessons();
+    });
+  }
+
+  List<Lesson> _filteredLessons(List<Lesson> lessons) {
+    if (selectedDifficulty == 'all') return lessons;
+    return lessons
+        .where((lesson) => lesson.difficulty == selectedDifficulty)
+        .toList();
   }
 
   String difficultyLabel(String value) {
@@ -51,45 +62,82 @@ class _LessonListScreenState extends State<LessonListScreen> {
   }
 
   String lessonEmoji(int index) {
-    const emojis = ['🛒', '🎡', '🎒', '🍜', '🏫', '☕'];
+    const emojis = ['🎧', '🎬', '📚', '🗣️', '✨', '🎯'];
     return emojis[index % emojis.length];
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
-        children: [
-          const AppHeader(
-            label: '학습',
-            title: '레슨 선택',
-            showBack: false,
-            emoji: '📚',
-          ),
-          const SizedBox(height: 22),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _filterChip('전체', 'all'),
-                _filterChip('쉬움', 'easy'),
-                _filterChip('보통', 'medium'),
-                _filterChip('어려움', 'hard'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          for (var i = 0; i < filteredLessons.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 22),
-              child: _lessonCard(
-                context,
-                filteredLessons[i],
-                i,
+      child: FutureBuilder<List<Lesson>>(
+        future: _lessonsFuture,
+        builder: (context, snapshot) {
+          final lessons = snapshot.data ?? const <Lesson>[];
+          final filteredLessons = _filteredLessons(lessons);
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+            children: [
+              const AppHeader(
+                label: '학습',
+                title: '레슨 선택',
+                showBack: false,
+                emoji: '🎙️',
               ),
-            ),
-        ],
+              const SizedBox(height: 22),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _filterChip('전체', 'all'),
+                    _filterChip('쉬움', 'easy'),
+                    _filterChip('보통', 'medium'),
+                    _filterChip('어려움', 'hard'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const _CatalogStateCard(
+                  icon: Icons.hourglass_empty_rounded,
+                  title: '레슨을 불러오는 중입니다',
+                  message: '백엔드에서 학습 목록을 가져오고 있어요.',
+                )
+              else if (snapshot.hasError)
+                _CatalogStateCard(
+                  icon: Icons.wifi_off_rounded,
+                  title: '레슨을 불러오지 못했습니다',
+                  message: '${snapshot.error}',
+                  actionLabel: '다시 시도',
+                  onAction: _reload,
+                )
+              else if (lessons.isEmpty)
+                _CatalogStateCard(
+                  icon: Icons.inbox_outlined,
+                  title: '등록된 레슨이 없습니다',
+                  message: '백엔드 메타데이터를 확인해 주세요.',
+                  actionLabel: '새로고침',
+                  onAction: _reload,
+                )
+              else if (filteredLessons.isEmpty)
+                const _CatalogStateCard(
+                  icon: Icons.filter_alt_off_rounded,
+                  title: '조건에 맞는 레슨이 없습니다',
+                  message: '다른 난이도를 선택해 보세요.',
+                )
+              else
+                for (var i = 0; i < filteredLessons.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 22),
+                    child: _lessonCard(
+                      context,
+                      filteredLessons[i],
+                      i,
+                    ),
+                  ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -131,10 +179,10 @@ class _LessonListScreenState extends State<LessonListScreen> {
   }
 
   Widget _lessonCard(
-      BuildContext context,
-      Lesson lesson,
-      int index,
-      ) {
+    BuildContext context,
+    Lesson lesson,
+    int index,
+  ) {
     final color = difficultyColor(lesson.difficulty);
 
     return GestureDetector(
@@ -163,13 +211,13 @@ class _LessonListScreenState extends State<LessonListScreen> {
                 gradient: LinearGradient(
                   colors: index.isEven
                       ? const [
-                    Color(0xFF315743),
-                    Color(0xFF10251C),
-                  ]
+                          Color(0xFF315743),
+                          Color(0xFF10251C),
+                        ]
                       : const [
-                    Color(0xFF0C4A35),
-                    Color(0xFF06291D),
-                  ],
+                          Color(0xFF0C4A35),
+                          Color(0xFF06291D),
+                        ],
                 ),
               ),
               child: Stack(
@@ -189,13 +237,13 @@ class _LessonListScreenState extends State<LessonListScreen> {
                       children: [
                         Pill(
                           text: difficultyLabel(lesson.difficulty),
-                          background: Colors.white.withOpacity(.92),
+                          background: Colors.white.withValues(alpha: .92),
                           foreground: color,
                         ),
                         const SizedBox(width: 8),
                         Pill(
                           text: '${lesson.sceneCount}개 장면',
-                          background: Colors.white.withOpacity(.92),
+                          background: Colors.white.withValues(alpha: .92),
                           foreground: appText,
                         ),
                       ],
@@ -213,7 +261,6 @@ class _LessonListScreenState extends State<LessonListScreen> {
                         color: Colors.white,
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -0.7,
                       ),
                     ),
                   ),
@@ -254,6 +301,62 @@ class _LessonListScreenState extends State<LessonListScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CatalogStateCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _CatalogStateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Icon(icon, color: appCoral, size: 34),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: appText,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: appSubText,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 16),
+            SoftOutlineButton(
+              text: actionLabel!,
+              icon: Icons.refresh_rounded,
+              onPressed: onAction,
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../repositories/pronunciation_repository.dart';
+import '../services/learning_session_store.dart';
 import '../services/local_attempt_store.dart';
 import '../services/local_user_store.dart';
 import '../widgets/common_widgets.dart';
@@ -428,6 +430,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (result == true) {
       await LocalAttemptStore.clearLocalOnly();
+      LearningSessionStore.clear();
+
+      try {
+        await PronunciationRepository.instance.clearBackendAttempts();
+      } catch (_) {
+        // Local history reset should still succeed when the backend is offline.
+      }
 
       if (!mounted) return;
 
@@ -735,7 +744,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
         ),

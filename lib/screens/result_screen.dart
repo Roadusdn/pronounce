@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../app_tab_controller.dart';
-import '../data/mock_data.dart';
+import '../models/pronunciation_models.dart';
+import '../repositories/pronunciation_repository.dart';
 import '../services/learning_session_store.dart';
 import '../services/local_attempt_store.dart';
 import '../widgets/common_widgets.dart';
@@ -12,14 +13,18 @@ class ResultScreen extends StatefulWidget {
   final String lessonId;
   final String sceneId;
   final String sentenceId;
-  final AttemptAnalysisResult? result;
+  final PracticeSentence sentence;
+  final List<PracticeSentence> sceneSentences;
+  final AttemptAnalysisResult result;
 
   const ResultScreen({
     super.key,
     required this.lessonId,
     required this.sceneId,
     required this.sentenceId,
-    this.result,
+    required this.sentence,
+    required this.sceneSentences,
+    required this.result,
   });
 
   @override
@@ -27,25 +32,55 @@ class ResultScreen extends StatefulWidget {
 }
 
 class _ResultScreenState extends State<ResultScreen> {
-  PracticeSentence get sentence =>
-      sentences.firstWhere((s) => s.id == widget.sentenceId);
+  late final Future<_NextSceneTarget?> _nextSceneTargetFuture;
+  bool _isNavigating = false;
+  bool _hasNextSceneTarget = false;
 
-  List<PracticeSentence> get sceneSentences =>
-      sentences.where((s) => s.sceneId == widget.sceneId).toList();
-
-  AttemptAnalysisResult get result =>
-      widget.result ?? analysisResultForSentence(widget.sentenceId);
+  AttemptAnalysisResult get result => widget.result;
 
   bool get isLastSentence {
-    final current = sceneSentences.indexWhere((s) => s.id == widget.sentenceId);
-    return current + 1 >= sceneSentences.length;
+    final current = widget.sceneSentences.indexWhere(
+      (sentence) => sentence.id == widget.sentenceId,
+    );
+    return current + 1 >= widget.sceneSentences.length;
   }
 
   @override
   void initState() {
     super.initState();
+    _nextSceneTargetFuture = _loadNextSceneTarget();
     LearningSessionStore.saveResult(result);
     _saveAttemptHistory();
+  }
+
+  Future<_NextSceneTarget?> _loadNextSceneTarget() async {
+    if (!isLastSentence) return null;
+
+    final bundle = await PronunciationRepository.instance.getLessonSceneBundle(
+      widget.lessonId,
+    );
+    final currentSceneIndex = bundle.scenes.indexWhere(
+      (scene) => scene.id == widget.sceneId,
+    );
+    if (currentSceneIndex < 0) return null;
+
+    for (var i = currentSceneIndex + 1; i < bundle.scenes.length; i++) {
+      final scene = bundle.scenes[i];
+      final sentences = bundle.sentencesBySceneId[scene.id] ?? const [];
+      if (sentences.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _hasNextSceneTarget = true;
+          });
+        }
+        return _NextSceneTarget(
+          sceneId: scene.id,
+          sentenceId: sentences.first.id,
+        );
+      }
+    }
+
+    return null;
   }
 
   Future<void> _saveAttemptHistory() async {
@@ -59,13 +94,18 @@ class _ResultScreenState extends State<ResultScreen> {
 
     await LocalAttemptStore.add(
       Attempt(
-        id: 'local-${analysis.sentenceId}-${now.microsecondsSinceEpoch}',
+        id: analysis.attemptId.isEmpty
+            ? 'local-${analysis.sentenceId}-${now.microsecondsSinceEpoch}'
+            : analysis.attemptId,
         sentenceText: analysis.targetText,
         date: date,
         overallScore: analysis.overallScore,
         consonantScore: analysis.consonantScore,
         vowelScore: analysis.vowelScore,
         intonationScore: analysis.intonationScore,
+        lessonId: widget.lessonId,
+        sceneId: widget.sceneId,
+        pronunciationFocus: widget.sentence.targetWord,
       ),
     );
   }
@@ -74,7 +114,7 @@ class _ResultScreenState extends State<ResultScreen> {
     final shouldExit = await showSoftConfirmDialog(
       context: context,
       title: '학습을 종료할까요?',
-      message: '현재 결과 확인을 중단하고 홈 화면으로 돌아갈 수 있어요.',
+      message: '현재 결과 확인을 중단하고 홈으로 돌아갈 수 있습니다.',
       cancelText: '계속하기',
       confirmText: '홈으로 가기',
     );
@@ -86,13 +126,21 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
-  void next() {
+  Future<void> next() async {
+    if (_isNavigating) return;
+
     LearningSessionStore.saveResult(result);
+    setState(() {
+      _isNavigating = true;
+    });
 
-    final current = sceneSentences.indexWhere((s) => s.id == widget.sentenceId);
+    final current = widget.sceneSentences.indexWhere(
+      (sentence) => sentence.id == widget.sentenceId,
+    );
 
-    if (current + 1 < sceneSentences.length) {
-      final nextSentence = sceneSentences[current + 1];
+    if (current + 1 < widget.sceneSentences.length) {
+      final nextSentence = widget.sceneSentences[current + 1];
+      if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
@@ -101,6 +149,23 @@ class _ResultScreenState extends State<ResultScreen> {
             lessonId: widget.lessonId,
             sceneId: widget.sceneId,
             sentenceId: nextSentence.id,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final nextSceneTarget = await _nextSceneTargetFuture;
+    if (!mounted) return;
+
+    if (nextSceneTarget != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LearnScreen(
+            lessonId: widget.lessonId,
+            sceneId: nextSceneTarget.sceneId,
+            sentenceId: nextSceneTarget.sentenceId,
           ),
         ),
       );
@@ -131,6 +196,14 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
+  String _nextButtonLabel() {
+    if (!isLastSentence) return '다음 문장';
+    if (_isNavigating) return '이동 중';
+    if (_hasNextSceneTarget) return '다음 장면';
+
+    return '최종 결과 보기';
+  }
+
   Color scoreColor(int score) {
     if (score >= 90) return const Color(0xFF3F72E8);
     if (score >= 80) return const Color(0xFF4D89F7);
@@ -146,17 +219,13 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   String shortSummary(AttemptAnalysisResult analysis) {
-    if (analysis.summaryMessage.isNotEmpty) {
-      return analysis.summaryMessage;
-    }
-    if (analysis.overallScore >= 90) {
-      return '자연스럽고 안정적인 발음이에요.';
-    }
+    if (analysis.summaryMessage.isNotEmpty) return analysis.summaryMessage;
+    if (analysis.overallScore >= 90) return '자연스럽고 안정적인 발음이에요.';
     if (analysis.overallScore >= 80) {
       return '전체 흐름은 좋고, 몇 부분만 다듬으면 더 자연스러워져요.';
     }
     if (analysis.overallScore >= 70) {
-      return '발음은 전달되지만, 모음과 억양을 조금 더 다듬어보면 좋아요.';
+      return '발음은 전달되지만 모음과 억양을 조금 더 다듬어보면 좋아요.';
     }
     return '천천히 또박또박 연습하면 훨씬 좋아질 수 있어요.';
   }
@@ -191,7 +260,6 @@ class _ResultScreenState extends State<ResultScreen> {
                           label: '학습 결과',
                           title: '발음 분석 결과',
                           onBack: _confirmExitLearning,
-                          emoji: '🌷',
                         ),
                         const SizedBox(height: 16),
                         _statusHeader(analysis),
@@ -245,8 +313,8 @@ class _ResultScreenState extends State<ResultScreen> {
                         ),
                         const SizedBox(height: 10),
                         _softFeedbackCard(
-                          emoji: '😊',
-                          title: '잘한 점',
+                          icon: Icons.chat_bubble_outline_rounded,
+                          title: '받은 평가',
                           body: analysis.praiseFeedback,
                           bg: const Color(0xFFE6F7EC),
                           titleColor: const Color(0xFF2F8E59),
@@ -254,8 +322,8 @@ class _ResultScreenState extends State<ResultScreen> {
                         ),
                         const SizedBox(height: 10),
                         _softFeedbackCard(
-                          emoji: '💡',
-                          title: '고쳐볼 점',
+                          icon: Icons.auto_fix_high_rounded,
+                          title: '교정',
                           body: analysis.correctionFeedback,
                           bg: const Color(0xFFFFEEDC),
                           titleColor: const Color(0xFFE28A52),
@@ -263,8 +331,8 @@ class _ResultScreenState extends State<ResultScreen> {
                         ),
                         const SizedBox(height: 10),
                         _softFeedbackCard(
-                          emoji: '🪄',
-                          title: '실천 팁',
+                          icon: Icons.star_outline_rounded,
+                          title: '중점 연습',
                           body: analysis.practiceFeedback,
                           bg: const Color(0xFFEEE8FF),
                           titleColor: const Color(0xFF7E66D8),
@@ -289,10 +357,7 @@ class _ResultScreenState extends State<ResultScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: appBorder,
-          width: .9,
-        ),
+        border: Border.all(color: appBorder, width: .9),
       ),
       child: Row(
         children: [
@@ -303,11 +368,10 @@ class _ResultScreenState extends State<ResultScreen> {
               shape: BoxShape.circle,
               color: Color(0xFFFFEEE8),
             ),
-            child: const Center(
-              child: Text(
-                '⭐',
-                style: TextStyle(fontSize: 30),
-              ),
+            child: const Icon(
+              Icons.workspace_premium_rounded,
+              color: appCoral,
+              size: 34,
             ),
           ),
           const SizedBox(width: 14),
@@ -323,7 +387,6 @@ class _ResultScreenState extends State<ResultScreen> {
                     color: appText,
                     fontSize: 24,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.3,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -372,32 +435,17 @@ class _ResultScreenState extends State<ResultScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: color.withOpacity(.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              scoreLabel(analysis.overallScore),
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+          Pill(
+            text: scoreLabel(analysis.overallScore),
+            background: color.withValues(alpha: .12),
+            foreground: color,
           ),
         ],
       ),
     );
   }
 
-  Widget _scoreBox(
-    String label,
-    int score,
-    Color bg,
-    Color color,
-  ) {
+  Widget _scoreBox(String label, int score, Color bg, Color color) {
     return AppCard(
       radius: 22,
       backgroundColor: bg,
@@ -481,7 +529,7 @@ class _ResultScreenState extends State<ResultScreen> {
           const SizedBox(height: 10),
           Text(
             analysis.predictedText.isEmpty
-                ? analysis.targetText
+                ? '인식된 문장이 없습니다.'
                 : analysis.predictedText,
             style: const TextStyle(
               color: appText,
@@ -504,10 +552,7 @@ class _ResultScreenState extends State<ResultScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFFF4F1FF),
           borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: const Color(0xFFE7DFFF),
-            width: 0.9,
-          ),
+          border: Border.all(color: const Color(0xFFE7DFFF), width: .9),
         ),
         child: Row(
           children: [
@@ -540,7 +585,7 @@ class _ResultScreenState extends State<ResultScreen> {
                   const SizedBox(height: 5),
                   Text(
                     analysis.pitchAnalysis.diagnosisTitle.isEmpty
-                        ? '내 억양 흐름을 기준 발음과 비교해볼 수 있어요'
+                        ? '내 억양 흐름을 기준 발음과 비교해볼 수 있어요.'
                         : analysis.pitchAnalysis.diagnosisTitle,
                     style: const TextStyle(
                       color: appSubText,
@@ -563,20 +608,22 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   Widget _softFeedbackCard({
-    required String emoji,
+    required IconData icon,
     required String title,
     required String body,
     required Color bg,
     required Color titleColor,
     required Color bodyColor,
   }) {
+    if (body.trim().isEmpty) return const SizedBox.shrink();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: titleColor.withOpacity(.18), width: 1),
+        border: Border.all(color: titleColor.withValues(alpha: .18), width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -586,10 +633,10 @@ class _ResultScreenState extends State<ResultScreen> {
             height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.72),
+              color: Colors.white.withValues(alpha: .72),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Text(emoji, style: const TextStyle(fontSize: 24)),
+            child: Icon(icon, color: titleColor, size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -626,9 +673,7 @@ class _ResultScreenState extends State<ResultScreen> {
     String text,
     List<PhonemeErrorRange> ranges,
   ) {
-    if (ranges.isEmpty) {
-      return [TextSpan(text: text)];
-    }
+    if (ranges.isEmpty) return [TextSpan(text: text)];
 
     final sorted = [...ranges]..sort((a, b) => a.start.compareTo(b.start));
     final spans = <TextSpan>[];
@@ -637,6 +682,7 @@ class _ResultScreenState extends State<ResultScreen> {
     for (final range in sorted) {
       final start = range.start.clamp(0, text.length);
       final end = range.end.clamp(start, text.length);
+      if (start == end) continue;
 
       if (cursor < start) {
         spans.add(TextSpan(text: text.substring(cursor, start)));
@@ -661,7 +707,6 @@ class _ResultScreenState extends State<ResultScreen> {
     if (cursor < text.length) {
       spans.add(TextSpan(text: text.substring(cursor)));
     }
-
     return spans;
   }
 
@@ -677,9 +722,7 @@ class _ResultScreenState extends State<ResultScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: appBorder,
-            ),
+            border: Border.all(color: appBorder),
           ),
           child: Row(
             children: [
@@ -707,7 +750,7 @@ class _ResultScreenState extends State<ResultScreen> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: next,
+                      onTap: _isNavigating ? null : next,
                       borderRadius: BorderRadius.circular(18),
                       child: Ink(
                         decoration: BoxDecoration(
@@ -717,11 +760,14 @@ class _ResultScreenState extends State<ResultScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                            ),
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                isLastSentence ? '최종 결과 보기' : '다음 문장',
+                                _nextButtonLabel(),
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -810,13 +856,12 @@ class _ResultScreenState extends State<ResultScreen> {
                                         color: appText,
                                         fontSize: 22,
                                         fontWeight: FontWeight.w900,
-                                        letterSpacing: -0.4,
                                       ),
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
                                       pitch.diagnosisTitle.isEmpty
-                                          ? '문장 억양 흐름을 확인해볼 수 있어요'
+                                          ? '문장 억양 흐름을 확인해볼 수 있어요.'
                                           : pitch.diagnosisTitle,
                                       style: const TextStyle(
                                         color: appSubText,
@@ -860,7 +905,7 @@ class _ResultScreenState extends State<ResultScreen> {
       ),
       child: Text(
         pitch.diagnosisMessage.isEmpty
-            ? '억양 흐름을 기준 발음과 비교해 연습해보세요.'
+            ? '억양 흐름을 기준 발음과 비교하며 연습해보세요.'
             : pitch.diagnosisMessage,
         style: TextStyle(
           color: matched ? const Color(0xFF2A7E52) : const Color(0xFF9A6A3B),
@@ -937,10 +982,7 @@ class _ResultScreenState extends State<ResultScreen> {
             height: 56,
             width: double.infinity,
             child: CustomPaint(
-              painter: _PitchCurvePainter(
-                color: color,
-                points: points,
-              ),
+              painter: _PitchCurvePainter(color: color, points: points),
             ),
           ),
         ],
@@ -1023,7 +1065,7 @@ class _PitchCurvePainter extends CustomPainter {
   final Color color;
   final List<double> points;
 
-  _PitchCurvePainter({
+  const _PitchCurvePainter({
     required this.color,
     required this.points,
   });
@@ -1040,7 +1082,8 @@ class _PitchCurvePainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
     canvas.drawLine(
       Offset(8, size.height * .5),
@@ -1048,33 +1091,85 @@ class _PitchCurvePainter extends CustomPainter {
       base,
     );
 
-    if (points.length < 2) return;
+    final displayPoints = _displayPoints(points);
+    if (displayPoints.length < 2) return;
 
-    final minValue = points.reduce((a, b) => a < b ? a : b);
-    final maxValue = points.reduce((a, b) => a > b ? a : b);
+    final minValue = displayPoints.reduce((a, b) => a < b ? a : b);
+    final maxValue = displayPoints.reduce((a, b) => a > b ? a : b);
     final range = (maxValue - minValue).abs() < 0.0001
         ? 1.0
         : maxValue - minValue;
-
     final path = Path();
+    final offsets = <Offset>[];
 
-    for (var i = 0; i < points.length; i++) {
-      final x = 8 + ((size.width - 16) * i / (points.length - 1));
-      final normalized = (points[i] - minValue) / range;
+    for (var i = 0; i < displayPoints.length; i++) {
+      final x = 8 + ((size.width - 16) * i / (displayPoints.length - 1));
+      final normalized = (displayPoints[i] - minValue) / range;
       final y = size.height - 8 - normalized * (size.height - 16);
-
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+      offsets.add(Offset(x, y));
     }
 
+    path.moveTo(offsets.first.dx, offsets.first.dy);
+    for (var i = 1; i < offsets.length; i++) {
+      final previous = offsets[i - 1];
+      final current = offsets[i];
+      final control = Offset(
+        (previous.dx + current.dx) / 2,
+        (previous.dy + current.dy) / 2,
+      );
+      path.quadraticBezierTo(previous.dx, previous.dy, control.dx, control.dy);
+    }
+    path.lineTo(offsets.last.dx, offsets.last.dy);
+
     canvas.drawPath(path, line);
+  }
+
+  List<double> _displayPoints(List<double> rawPoints) {
+    final cleaned = rawPoints.where((value) => value.isFinite).toList();
+    if (cleaned.length < 3) return cleaned;
+
+    final targetCount = cleaned.length > 28 ? 28 : cleaned.length;
+    final bucketed = <double>[];
+    for (var i = 0; i < targetCount; i++) {
+      final start = (i * cleaned.length / targetCount).floor();
+      final end = ((i + 1) * cleaned.length / targetCount).ceil();
+      final slice = cleaned.sublist(start, end.clamp(start + 1, cleaned.length));
+      bucketed.add(slice.reduce((a, b) => a + b) / slice.length);
+    }
+
+    return _movingAverage(bucketed, windowRadius: bucketed.length > 12 ? 2 : 1);
+  }
+
+  List<double> _movingAverage(List<double> values, {required int windowRadius}) {
+    if (values.length < 3) return values;
+
+    return [
+      for (var i = 0; i < values.length; i++)
+        _average(
+          values.sublist(
+            (i - windowRadius).clamp(0, values.length),
+            (i + windowRadius + 1).clamp(0, values.length),
+          ),
+        ),
+    ];
+  }
+
+  double _average(List<double> values) {
+    return values.reduce((a, b) => a + b) / values.length;
   }
 
   @override
   bool shouldRepaint(covariant _PitchCurvePainter oldDelegate) {
     return oldDelegate.color != color || oldDelegate.points != points;
   }
+}
+
+class _NextSceneTarget {
+  final String sceneId;
+  final String sentenceId;
+
+  const _NextSceneTarget({
+    required this.sceneId,
+    required this.sentenceId,
+  });
 }
