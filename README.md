@@ -1,17 +1,108 @@
-# proj1
+## 1. 개요
 
-A new Flutter project.
+이번 주에는 **Flutter 프론트엔드와 FastAPI 백엔드 연동 안정화**를 중심으로 작업했습니다.
 
-## Getting Started
+기존에는 화면 일부가 `mock data`에 의존하고 있었기 때문에, 이를 다음과 같은 구조로 전환하는 방향으로 정리했습니다.
 
-This project is a starting point for a Flutter application.
+```text
+Screen → Repository → API Client → FastAPI
+```
 
-A few resources to get you started if this is your first Flutter project:
+이를 위해 모델, API Client, Repository 계층을 추가하고, 레슨/씬/문장/분석 결과를 백엔드 응답 기반으로 불러오도록 수정했습니다.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 2. 백엔드 수정 사항
+
+백엔드는 프론트엔드에서 필요한 데이터가 부족하거나, 응답 형태가 화면 구조와 맞지 않는 부분을 중심으로 보완했습니다.
+
+### 레슨-씬 조회 구조 개선
+
+레슨에 포함된 씬 목록을 바로 가져올 수 있도록 다음 엔드포인트를 추가했습니다.
+
+```http
+GET /api/lessons/{lesson_id}/scenes
+```
+
+기존에는 레슨 정보를 가져온 뒤, 각 씬을 별도로 조회해야 했기 때문에 프론트엔드 요청이 많아지는 문제가 있었습니다.  
+이번 수정으로 특정 레슨에 포함된 씬 목록을 한 번에 가져올 수 있게 되었습니다.
+
+---
+
+### 씬 응답 필드 보강
+
+프론트엔드에서 씬 카드를 표시하는 데 필요한 필드를 백엔드 응답에 추가했습니다.
+
+추가된 주요 필드는 다음과 같습니다.
+
+```text
+sentence_count
+duration
+completed
+```
+
+이를 통해 프론트엔드에서 문장 수, 예상 소요 시간, 완료 여부 등을 별도로 계산하지 않고 백엔드 응답을 기반으로 표시할 수 있게 했습니다.
+
+---
+
+### 분석 결과 통합 엔드포인트 추가
+
+기존에는 분석 결과가 여러 API에 나뉘어 있었습니다.
+
+예를 들어 발음 결과, 억양 결과, 피드백 결과를 각각 따로 가져와야 했기 때문에 프론트엔드에서 결과를 조합해야 하는 부담이 있었습니다.
+
+이를 줄이기 위해 통합 분석 결과 엔드포인트를 추가했습니다.
+
+```http
+GET /api/attempts/{attempt_id}/analysis
+```
+
+이 엔드포인트를 통해 분석 결과를 하나의 응답 형태로 받을 수 있도록 정리했습니다.
+
+---
+
+## 3. 수정 목적
+
+이번 백엔드 수정의 핵심 목적은 프론트엔드가 백엔드 JSON을 직접 해석하지 않고, Repository 계층에서 화면에 필요한 형태로 변환해 안정적으로 사용할 수 있도록 하는 것입니다.
+
+또한 다음과 같이 실제 학습 흐름에 필요한 데이터가 API에서 바로 제공되도록 백엔드 계약을 정리했습니다.
+
+```text
+씬 목록
+영상 URL
+문장 정보
+분석 결과
+발음 오류 구간
+억양 분석 결과
+피드백
+```
+
+이를 통해 프론트엔드 화면 구조와 백엔드 응답 구조 사이의 불일치를 줄이고, 이후 기능 추가 시에도 유지보수가 쉬운 구조로 개선했습니다.
+
+---
+
+## 4. 추가로 반영되었으면 하는 부분
+
+현재는 문장 단위 영상 전체를 `다시 듣기` 또는 `느리게 듣기` 하는 방식입니다.
+
+하지만 실제 발화는 영상 전체에 걸쳐 존재하는 것이 아니라, 특정 구간에만 존재할 수 있습니다.
+
+따라서 백엔드 메타데이터에 **문장별 실제 발화 구간**을 추가했으면 합니다.
+
+예시는 다음과 같습니다.
+
+```json
+{
+  "utterance_id": "U001",
+  "text": "라면 먹으려고",
+  "clip_url": "/api/clips/clip_001.mp4",
+  "speech_start_sec": 3.2,
+  "speech_end_sec": 5.8
+}
+```
+
+위와 같은 메타데이터가 제공되면, 프론트엔드에서는 `다시 듣기` 또는 `느리게 듣기`를 눌렀을 때 영상 전체가 아니라 실제 발화 시작 시점부터 발화 종료 시점까지만 재생할 수 있습니다.
+
+예를 들어 전체 씬 안에서 `"라면 먹으려고"`라는 발화가 3.2초부터 5.8초까지라면, 해당 구간만 반복 재생하거나 0.75배속으로 들을 수 있습니다.
+
+이를 통해 학습자는 불필요한 앞뒤 장면을 반복해서 들을 필요 없이, 실제 따라 말해야 하는 구간에 집중할 수 있습니다.
