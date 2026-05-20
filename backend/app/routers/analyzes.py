@@ -25,11 +25,12 @@ async def _save_uploaded_audio(audio_file: UploadFile) -> Path:
 @router.post("/transcribe")
 async def transcribe(
         audio_file: UploadFile = File(...),
+        expected_text: str = Form(None),
 ) -> dict[str, object]:
     saved_path = await _save_uploaded_audio(audio_file)
 
     try:
-        transcript = transcribe_audio(saved_path)
+        transcript = transcribe_audio(saved_path, expected_text=expected_text)
     except TranscriptionDependencyError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
@@ -61,7 +62,7 @@ async def analyze(
         expected_text, reference_saved_path
     )
 
-    transcript = transcribe_audio(saved_path)
+    transcript = transcribe_audio(saved_path, expected_text=expected_text)
     expected_pronunciation = text_to_pronunciation(expected_text)
     transcript_pronunciation = text_to_pronunciation(transcript)
     expected_jamo = decompose_to_jamo(expected_pronunciation)

@@ -1,5 +1,7 @@
 ﻿import 'dart:io';
 
+import 'dart:typed_data';
+
 import '../api/pronunciation_api_client.dart';
 import '../models/pronunciation_models.dart';
 
@@ -118,6 +120,24 @@ class PronunciationRepository {
     required PracticeSentence sentence,
     required File audioFile,
   }) async {
+    return analyzeRecordingBytes(
+      lessonId: lessonId,
+      sceneId: sceneId,
+      sentence: sentence,
+      audioBytes: await audioFile.readAsBytes(),
+      filename: audioFile.uri.pathSegments.isEmpty
+          ? 'recording.m4a'
+          : audioFile.uri.pathSegments.last,
+    );
+  }
+
+  Future<AttemptAnalysisResult> analyzeRecordingBytes({
+    required String lessonId,
+    required String sceneId,
+    required PracticeSentence sentence,
+    required List<int> audioBytes,
+    String filename = 'recording.m4a',
+  }) async {
     final attempt = await _apiClient.startAttempt(
       utteranceId: sentence.id,
       lessonId: lessonId,
@@ -125,10 +145,8 @@ class PronunciationRepository {
     );
     final uploadJson = await _apiClient.uploadAttemptAudio(
       attemptId: attempt.attemptId,
-      audioBytes: await audioFile.readAsBytes(),
-      filename: audioFile.uri.pathSegments.isEmpty
-          ? 'recording.m4a'
-          : audioFile.uri.pathSegments.last,
+      audioBytes: Uint8List.fromList(audioBytes),
+      filename: filename,
     );
 
     final result = AttemptResult.fromJson(uploadJson);
@@ -145,12 +163,28 @@ class PronunciationRepository {
     );
   }
 
-  Future<String> transcribeRecording(File audioFile) async {
-    return _apiClient.transcribeAudio(
+  Future<String> transcribeRecording(
+    File audioFile, {
+    String? expectedText,
+  }) async {
+    return transcribeRecordingBytes(
       audioBytes: await audioFile.readAsBytes(),
       filename: audioFile.uri.pathSegments.isEmpty
           ? 'recording.m4a'
           : audioFile.uri.pathSegments.last,
+      expectedText: expectedText,
+    );
+  }
+
+  Future<String> transcribeRecordingBytes({
+    required List<int> audioBytes,
+    String filename = 'recording.m4a',
+    String? expectedText,
+  }) {
+    return _apiClient.transcribeAudio(
+      audioBytes: Uint8List.fromList(audioBytes),
+      filename: filename,
+      expectedText: expectedText,
     );
   }
 

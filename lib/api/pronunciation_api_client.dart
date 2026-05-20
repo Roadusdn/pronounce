@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
 import '../models/pronunciation_models.dart';
+import 'platform_base_url.dart';
 
 class PronunciationApiException implements Exception {
   final String message;
@@ -36,8 +36,7 @@ class PronunciationApiClient {
 
   static String get defaultBaseUrl {
     if (configuredBaseUrl.isNotEmpty) return configuredBaseUrl;
-    if (Platform.isAndroid) return 'http://10.0.2.2:8000';
-    return 'http://localhost:8000';
+    return platformDefaultBaseUrl();
   }
 
   Future<List<Lesson>> getLessons() async {
@@ -191,8 +190,13 @@ class PronunciationApiClient {
   Future<String> transcribeAudio({
     required Uint8List audioBytes,
     String filename = 'recording.m4a',
+    String? expectedText,
   }) async {
     final request = http.MultipartRequest('POST', _uri('/api/transcribe'));
+
+    if (expectedText != null && expectedText.trim().isNotEmpty) {
+      request.fields['expected_text'] = expectedText.trim();
+    }
 
     request.files.add(
       http.MultipartFile.fromBytes(

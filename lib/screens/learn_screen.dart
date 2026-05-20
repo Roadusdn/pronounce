@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:video_player/video_player.dart';
@@ -100,13 +102,13 @@ class _LearnScreenState extends State<LearnScreen>
         return;
       }
 
-      final dir = await getTemporaryDirectory();
-      final path =
-          '${dir.path}/practice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final path = kIsWeb
+          ? ''
+          : '${(await getTemporaryDirectory()).path}/practice_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
       await _recorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
+        RecordConfig(
+          encoder: kIsWeb ? AudioEncoder.wav : AudioEncoder.aacLc,
           sampleRate: 44100,
           bitRate: 128000,
         ),
@@ -143,7 +145,7 @@ class _LearnScreenState extends State<LearnScreen>
         _transcriptionError = '';
       });
 
-      await _transcribeRecordedAudio();
+      await _transcribeRecordedAudio(sentence);
     } catch (_) {
       setState(() {
         _isRecording = false;
@@ -152,7 +154,7 @@ class _LearnScreenState extends State<LearnScreen>
     }
   }
 
-  Future<void> _transcribeRecordedAudio() async {
+  Future<void> _transcribeRecordedAudio(PracticeSentence sentence) async {
     final recordPath = _recordPath;
     if (recordPath == null) {
       setState(() {
@@ -162,8 +164,8 @@ class _LearnScreenState extends State<LearnScreen>
       return;
     }
 
-    final audioFile = File(recordPath);
-    if (!await audioFile.exists() || await audioFile.length() == 0) {
+    final audioBytes = await _readRecordedAudioBytes(recordPath);
+    if (audioBytes.isEmpty) {
       setState(() {
         _isTranscribing = false;
         _transcriptionError = '녹음 파일이 비어 있습니다.';
@@ -173,7 +175,11 @@ class _LearnScreenState extends State<LearnScreen>
 
     try {
       final transcript = await PronunciationRepository.instance
-          .transcribeRecording(audioFile);
+          .transcribeRecordingBytes(
+            audioBytes: audioBytes,
+            filename: _recordingFilename(),
+            expectedText: sentence.text,
+          );
       if (!mounted) return;
       setState(() {
         _isTranscribing = false;
@@ -191,7 +197,7 @@ class _LearnScreenState extends State<LearnScreen>
   }
 
   Future<void> _retryRecording() async {
-    if (_recordPath != null) {
+    if (!kIsWeb && _recordPath != null) {
       final file = File(_recordPath!);
       if (await file.exists()) {
         await file.delete();
@@ -216,8 +222,8 @@ class _LearnScreenState extends State<LearnScreen>
     final recordPath = _recordPath;
     if (recordPath == null) return;
 
-    final audioFile = File(recordPath);
-    if (!await audioFile.exists() || await audioFile.length() == 0) {
+    final audioBytes = await _readRecordedAudioBytes(recordPath);
+    if (audioBytes.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('녹음 파일이 비어 있습니다. 다시 녹음해 주세요.')),
@@ -230,11 +236,12 @@ class _LearnScreenState extends State<LearnScreen>
     });
 
     try {
-      final result = await PronunciationRepository.instance.analyzeRecording(
+      final result = await PronunciationRepository.instance.analyzeRecordingBytes(
         lessonId: widget.lessonId,
         sceneId: widget.sceneId,
         sentence: sentence,
-        audioFile: audioFile,
+        audioBytes: audioBytes,
+        filename: _recordingFilename(),
       );
 
       if (!mounted) return;
@@ -261,6 +268,24 @@ class _LearnScreenState extends State<LearnScreen>
         SnackBar(content: Text('분석에 실패했습니다: $error')),
       );
     }
+  }
+
+  String _recordingFilename() {
+    return kIsWeb ? 'recording.wav' : 'recording.m4a';
+  }
+
+  Future<Uint8List> _readRecordedAudioBytes(String recordPath) async {
+    if (kIsWeb) {
+      final response = await http.get(Uri.parse(recordPath));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+      return Uint8List(0);
+    }
+
+    final audioFile = File(recordPath);
+    if (!await audioFile.exists()) return Uint8List(0);
+    return audioFile.readAsBytes();
   }
 
   @override

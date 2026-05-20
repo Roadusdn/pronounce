@@ -63,8 +63,8 @@ def run_full_analysis_from_metadata(
 
     reference_audio_path, reference_reason = _resolve_reference_audio(metadata)
 
-    transcript = transcribe_audio(uploaded_audio_path)
     expected_text = metadata.normalized_text or metadata.practice_text
+    transcript = transcribe_audio(uploaded_audio_path, expected_text=expected_text)
     expected_pronunciation = text_to_pronunciation(expected_text)
     transcript_pronunciation = text_to_pronunciation(transcript)
     expected_jamo = decompose_to_jamo(expected_pronunciation)
