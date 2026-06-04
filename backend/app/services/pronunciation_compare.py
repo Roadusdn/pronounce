@@ -7,6 +7,15 @@ TARGET_GROUPS = {
     "ae_e_group": {"ㅐ", "ㅔ"},
 }
 
+CONSONANTS = {
+    "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ",
+    "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ",
+}
+VOWELS = {
+    "ㅏ", "ㅐ", "ㅑ", "ㅒ", "ㅓ", "ㅔ", "ㅕ", "ㅖ", "ㅗ", "ㅘ", "ㅙ", "ㅚ",
+    "ㅛ", "ㅜ", "ㅝ", "ㅞ", "ㅟ", "ㅠ", "ㅡ", "ㅢ", "ㅣ",
+}
+
 
 import unicodedata
 from typing import Optional
@@ -74,6 +83,12 @@ def compare_pronunciation(expected_jamo: str, transcript_jamo: str) -> dict[str,
     max_length = max(len(expected_jamo), len(transcript_jamo))
     compared_count = 0
     matched_count = 0
+    consonant_compared_count = 0
+    consonant_matched_count = 0
+    vowel_compared_count = 0
+    vowel_matched_count = 0
+    consonant_mismatch_count = 0
+    vowel_mismatch_count = 0
 
     for index in range(max_length):
         expected_char = expected_jamo[index] if index < len(expected_jamo) else ""
@@ -85,6 +100,23 @@ def compare_pronunciation(expected_jamo: str, transcript_jamo: str) -> dict[str,
         compared_count += 1
         if expected_char == transcript_char:
             matched_count += 1
+
+        is_consonant = expected_char in CONSONANTS or transcript_char in CONSONANTS
+        is_vowel = expected_char in VOWELS or transcript_char in VOWELS
+
+        if is_consonant:
+            consonant_compared_count += 1
+            if expected_char == transcript_char:
+                consonant_matched_count += 1
+            else:
+                consonant_mismatch_count += 1
+
+        if is_vowel:
+            vowel_compared_count += 1
+            if expected_char == transcript_char:
+                vowel_matched_count += 1
+            else:
+                vowel_mismatch_count += 1
 
         group_name = _find_group(expected_char) or _find_group(transcript_char)
         if group_name:
@@ -106,9 +138,22 @@ def compare_pronunciation(expected_jamo: str, transcript_jamo: str) -> dict[str,
     simple_score = 0
     if compared_count:
         simple_score = round((matched_count / compared_count) * 100, 2)
+    consonant_score = 0
+    if consonant_compared_count:
+        consonant_score = round(
+            (consonant_matched_count / consonant_compared_count) * 100,
+            2,
+        )
+    vowel_score = 0
+    if vowel_compared_count:
+        vowel_score = round((vowel_matched_count / vowel_compared_count) * 100, 2)
 
     return {
         "mismatched_items": mismatched_items,
         "target_group_matches": target_group_matches,
         "simple_score": simple_score,
+        "consonant_score": consonant_score,
+        "vowel_score": vowel_score,
+        "consonant_mismatch_count": consonant_mismatch_count,
+        "vowel_mismatch_count": vowel_mismatch_count,
     }

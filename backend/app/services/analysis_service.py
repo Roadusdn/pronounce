@@ -89,6 +89,10 @@ def run_full_analysis_from_metadata(
         target_mismatched_items,
         target_group_matches,
         comparison_result["simple_score"],
+        pronunciation_stats=comparison_result,
+        prosody_result=prosody_result,
+        target_phoneme_group=metadata.target_phoneme_group,
+        target_prosody_type=metadata.target_prosody_type,
     )
     top_mismatch = get_top_mismatch(target_mismatched_items)
 
@@ -129,6 +133,10 @@ def run_full_analysis_from_metadata(
         },
         "comparison": {
             "simple_score": comparison_result["simple_score"],
+            "consonant_score": comparison_result["consonant_score"],
+            "vowel_score": comparison_result["vowel_score"],
+            "consonant_mismatch_count": comparison_result["consonant_mismatch_count"],
+            "vowel_mismatch_count": comparison_result["vowel_mismatch_count"],
             "mismatched_items": comparison_result["mismatched_items"],
             "target_group_matches": comparison_result["target_group_matches"],
             "target_phoneme_group": metadata.target_phoneme_group,
@@ -140,6 +148,10 @@ def run_full_analysis_from_metadata(
             "type": feedback["feedback_type"],
             "message": feedback["feedback_message"],
             "top_mismatch": top_mismatch,
+            "summary_feedback": feedback.get("summary_feedback", ""),
+            "pronunciation_feedback": feedback.get("pronunciation_feedback", ""),
+            "prosody_feedback": feedback.get("prosody_feedback", ""),
+            "practice_direction": feedback.get("practice_direction", ""),
         },
     }
     result.update(

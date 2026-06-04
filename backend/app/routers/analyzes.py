@@ -75,6 +75,8 @@ async def analyze(
         comparison_result["mismatched_items"],
         comparison_result["target_group_matches"],
         comparison_result["simple_score"],
+        pronunciation_stats=comparison_result,
+        prosody_result=prosody_result,
     )
     top_mismatch = get_top_mismatch(comparison_result["mismatched_items"])
 
@@ -86,15 +88,23 @@ async def analyze(
         "expected_pronunciation": expected_pronunciation,
         "transcript_pronunciation": transcript_pronunciation,
         "simple_score": comparison_result["simple_score"],
+        "consonant_score": comparison_result["consonant_score"],
+        "vowel_score": comparison_result["vowel_score"],
         "top_mismatch": top_mismatch,
         "feedback_type": feedback["feedback_type"],
         "feedback_message": feedback["feedback_message"],
+        "summary_feedback": feedback.get("summary_feedback", ""),
+        "pronunciation_feedback": feedback.get("pronunciation_feedback", ""),
+        "prosody_feedback": feedback.get("prosody_feedback", ""),
+        "practice_direction": feedback.get("practice_direction", ""),
         "comparison": {
             "expected_jamo": expected_jamo,
             "transcript_jamo": transcript_jamo,
             "mismatched_items": comparison_result["mismatched_items"],
             "target_group_matches": comparison_result["target_group_matches"],
             "simple_score": comparison_result["simple_score"],
+            "consonant_score": comparison_result["consonant_score"],
+            "vowel_score": comparison_result["vowel_score"],
         },
         "prosody_result": prosody_result,
         "message": "upload success",

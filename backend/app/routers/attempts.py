@@ -89,6 +89,10 @@ def _attempt_result_payload(attempt: Dict[str, Any]) -> Dict[str, Any]:
         "transcript": attempt.get("transcript") or "",
         "feedback_type": attempt.get("feedback_type"),
         "feedback_message": attempt.get("feedback_message"),
+        "summary_feedback": attempt.get("summary_feedback"),
+        "pronunciation_feedback": attempt.get("pronunciation_feedback"),
+        "prosody_feedback": attempt.get("prosody_feedback"),
+        "practice_direction": attempt.get("practice_direction"),
         "clip_filename": attempt.get("clip_filename"),
         "clip_start_sec": attempt.get("clip_start_sec"),
         "clip_end_sec": attempt.get("clip_end_sec"),
@@ -217,6 +221,10 @@ def _feedback_payload(attempt: Dict[str, Any]) -> Dict[str, Any]:
         "tip": "예문을 들은 뒤 같은 속도와 리듬으로 다시 따라 말해보세요.",
         "top_mismatch": attempt.get("top_mismatch"),
         "score": attempt.get("score"),
+        "summary_feedback": attempt.get("summary_feedback"),
+        "pronunciation_feedback": attempt.get("pronunciation_feedback"),
+        "prosody_feedback": attempt.get("prosody_feedback"),
+        "practice_direction": attempt.get("practice_direction"),
     }
 
 
